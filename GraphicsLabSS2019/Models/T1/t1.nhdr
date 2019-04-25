@@ -1,0 +1,13 @@
+NRRD0004
+# Complete NRRD file format specification at:
+# http://teem.sourceforge.net/nrrd/format.html
+type: short
+dimension: 3
+space: right-anterior-superior
+sizes: 256 256 220
+space directions: (-0.93318331241607666,-0.016610553488135338,-0.08831360936164856) (-0.014702281914651394,0.93715143203735352,-0.020910495892167091) (-0.094558462500572205,0.020723892375826836,0.9952729344367981)
+kinds: space space space
+endian: little
+encoding: raw
+space origin: (134.07183837890625,-111.63153076171875,-82.898414611816406)
+data file: t1.raw
