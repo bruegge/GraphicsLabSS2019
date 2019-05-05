@@ -37,10 +37,14 @@ private:
 	struct STubeInfo
 	{
 		glm::mat4 matModelMatrix;
+		glm::vec3 PlaneStartNormal;
 		float fLength;
+		glm::vec3 PlaneStartPosition;
+		float fFiberNumber;
+		glm::vec3 PlaneEndNormal;
 		float fFill0;
+		glm::vec3 PlaneEndPosition;
 		float fFill1;
-		float fFill2;
 	};
 
 	std::vector<SVertex> m_vecVBOData;

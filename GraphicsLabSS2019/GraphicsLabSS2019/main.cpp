@@ -23,7 +23,7 @@ int nCountTubeEdges = 3;
 
 void LoadContent()
 {
-	pWindow = new CWindowGLFW(800, 600);
+	pWindow = new CWindowGLFW(1200, 1000);
 	pCamera = new CCamera(glm::vec3(0, 0, -50), glm::vec3(0, 0, 1), glm::vec3(0, 1, 0), 110, static_cast<float>(pWindow->GetWindowSize().x) / static_cast<float>(pWindow->GetWindowSize().y), 0.01f, 1000.0f);
 	pShaderLine = new CShader();
 	pShaderLine->CreateShaderProgram("../Shaders/VS_ShowLine.glsl", nullptr, nullptr,nullptr, "../Shaders/FS_ShowLine.glsl");
@@ -31,6 +31,7 @@ void LoadContent()
 	pShaderTube->CreateShaderProgram("../Shaders/VS_ShowTube.glsl", nullptr, nullptr, nullptr, "../Shaders/FS_ShowTube.glsl");
 	pFibers = new CFibers();
 	pFibers->LoadFile("../Models/sagittal-t1-video.ply");
+//	pFibers->LoadFile("../Models/test.ply");
 
 	{ //GUI
 		ImGui::CreateContext();
@@ -81,7 +82,7 @@ void InputManagement()
 
 void GameLoop()
 {
-	glClearColor(0.1f, 0.1f, 0.02f, 1.0f);
+	glClearColor(0.2f, 0.2f, 0.02f, 1.0f);
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
 	glEnable(GL_BLEND);

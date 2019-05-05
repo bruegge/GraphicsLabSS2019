@@ -128,7 +128,7 @@ void CFibers::GenerateTube()
 	m_vecVBOTube.clear();
 	m_vecIBOTube.clear();
 	//set VBO data
-	for (unsigned int l = 0; l <= 1; ++l)
+	for (int l = -1; l <= 1; l+=2)
 	{
 		for (unsigned int i = 0; i < m_nCountTubeEdges; ++i)
 		{
@@ -199,39 +199,114 @@ void CFibers::GenerateAndFillTubeBuffer()
 	//convert to STubeInfo format
 	m_vecTubes.resize(m_vecVBOData.size() - m_nCountFibers * 2 + 1);
 	
-	unsigned int nIBOIndex = 0;
+	int nIBOIndex = 0;
 	unsigned int nSSBOIndex = 0;
 	GLuint nRestartSymbol = m_vecIBOData.size();
+	float fFiberNumber = 0;
+
 	while(nIBOIndex < m_vecIBOData.size()-1)
 	{
-		GLuint nIBO0 = m_vecIBOData[nIBOIndex];
-		GLuint nIBO1 = m_vecIBOData[nIBOIndex + 1];
+		GLuint nIBO0 = nRestartSymbol;
+		GLuint nIBO1 = nRestartSymbol;
+		GLuint nIBO2 = nRestartSymbol;
+		GLuint nIBO3 = nRestartSymbol;
+		glm::vec3 vPosition0;
+		glm::vec3 vPosition1;
+		glm::vec3 vPosition2;
+		glm::vec3 vPosition3;
 
-		if (nIBO0 != nRestartSymbol && nIBO1 != nRestartSymbol)
+		if (m_vecIBOData.size() > nIBOIndex - 1 && nIBOIndex - 1 >= 0)
 		{
+			nIBO0 = m_vecIBOData[nIBOIndex - 1];
+			if(nIBO0 != nRestartSymbol)
+				vPosition0 = m_vecVBOData[nIBO0].Position;
+		}
+		if (m_vecIBOData.size() > nIBOIndex && nIBOIndex >= 0)
+		{
+			nIBO1 = m_vecIBOData[nIBOIndex];
+			if (nIBO1 != nRestartSymbol)
+				vPosition1 = m_vecVBOData[nIBO1].Position;
+		}
+		if (m_vecIBOData.size() > nIBOIndex + 1 && nIBOIndex + 1 >= 0)
+		{
+			nIBO2 = m_vecIBOData[nIBOIndex + 1];
+			if (nIBO2 != nRestartSymbol)
+				vPosition2 = m_vecVBOData[nIBO2].Position;
+		}
+		if (m_vecIBOData.size() > nIBOIndex + 2 && nIBOIndex +2 >= 0)
+		{
+			nIBO3 = m_vecIBOData[nIBOIndex + 2];
+			if (nIBO3 != nRestartSymbol)
+				vPosition3 = m_vecVBOData[nIBO3].Position;
+		}
+	
+		if (nIBO1 == nRestartSymbol)
+		{
+			fFiberNumber++;
+		}
+
+		if (nIBO1 != nRestartSymbol && nIBO2 != nRestartSymbol)
+		{
+			m_vecTubes[nSSBOIndex].fFiberNumber = fFiberNumber;
+			//generate coordinateMatrix in the middle of the line direction to z
 			glm::mat4 mTBNMatrix;
 
-			glm::vec3 vStartPosition = m_vecVBOData[nIBO0].Position;
-			glm::vec3 vEndPosition = m_vecVBOData[nIBO1].Position;
+			glm::vec3 vStartPosition = vPosition1;
+			glm::vec3 vEndPosition = vPosition2;
 
 			glm::vec3 vTangent = glm::normalize(vEndPosition - vStartPosition);
-			glm::vec3 vNormal = glm::normalize(glm::cross(vTangent, glm::vec3(0, 1, 0)));
+			glm::vec3 vNormal;
+			if (vTangent != glm::vec3(0, 1, 0) && vTangent != glm::vec3(0, -1, 0))
+			{
+				vNormal = glm::normalize(glm::cross(vTangent, glm::vec3(0, 1, 0)));
+			}
+			else
+			{
+				vNormal = glm::normalize(glm::cross(vTangent, glm::vec3(1, 0, 0)));
+			}
 			glm::vec3 vBitangent = glm::normalize(glm::cross(vTangent, vNormal));
-			mTBNMatrix[2] = glm::vec4(vTangent.x, vTangent.y, vTangent.z, 0);
-			mTBNMatrix[1] = glm::vec4(vBitangent.x, vBitangent.y, vBitangent.z, 0);
 			mTBNMatrix[0] = glm::vec4(vNormal.x, vNormal.y, vNormal.z, 0);
-			mTBNMatrix[3] = glm::vec4(vStartPosition.x, vStartPosition.y, vStartPosition.z, 1);
-
+			mTBNMatrix[1] = glm::vec4(vBitangent.x, vBitangent.y, vBitangent.z, 0);
+			mTBNMatrix[2] = glm::vec4(vTangent.x, vTangent.y, vTangent.z, 0);
+			mTBNMatrix[3] = glm::vec4((vStartPosition + vEndPosition) / 2.0f, 1);
 			m_vecTubes[nSSBOIndex].matModelMatrix = mTBNMatrix;
-			m_vecTubes[nSSBOIndex].fLength = glm::length(vEndPosition - vStartPosition);
-			m_vecTubes[nSSBOIndex].fFill0 = 0;
-			m_vecTubes[nSSBOIndex].fFill1 = 0;
-			m_vecTubes[nSSBOIndex].fFill2 = 0;
-			nSSBOIndex++;
+			m_vecTubes[nSSBOIndex].fLength = glm::length(vEndPosition - vStartPosition) * 0.5f;
+
+			//calculate planes
+			
+			m_vecTubes[nSSBOIndex].PlaneStartPosition = vStartPosition;
+			if (nIBO0 == nRestartSymbol)
+			{
+				m_vecTubes[nSSBOIndex].PlaneStartNormal = glm::normalize(glm::transpose(glm::inverse(glm::mat3(mTBNMatrix))) * glm::vec3(0, 0, -1));
+			}
+			else
+			{
+				glm::vec3 vDirection01Normalized = glm::normalize(vPosition0 - vPosition1);
+				glm::vec3 vDirection21Normalized = glm::normalize(vPosition2 - vPosition1);
+				
+				glm::vec3 vInPlane0 = (vDirection01Normalized + vDirection21Normalized) * 0.5f;
+				glm::vec3 vInPlane1 = glm::normalize(glm::cross(vDirection01Normalized, vDirection21Normalized));
+				m_vecTubes[nSSBOIndex].PlaneStartNormal = glm::normalize(glm::cross(vInPlane0, vInPlane1));	
+			}
+
+			m_vecTubes[nSSBOIndex].PlaneEndPosition = vEndPosition;
+			if (nIBO3 == nRestartSymbol)
+			{
+				m_vecTubes[nSSBOIndex].PlaneEndNormal = glm::normalize(glm::transpose(glm::inverse(glm::mat3(mTBNMatrix))) * glm::vec3(0, 0, 1));
+			}
+			else
+			{
+				glm::vec3 vDirection32Normalized = glm::normalize(vPosition3 - vPosition2);
+				glm::vec3 vDirection12Normalized = glm::normalize(vPosition1 - vPosition2);
+
+				glm::vec3 vInPlane0 = (vDirection32Normalized + vDirection12Normalized) * 0.5f;
+				glm::vec3 vInPlane1 = glm::normalize(glm::cross(vDirection32Normalized, vDirection12Normalized));
+				m_vecTubes[nSSBOIndex].PlaneEndNormal = glm::normalize(glm::cross(vInPlane0, vInPlane1));
+			}
+			nSSBOIndex++;	
 		}
 		nIBOIndex++;
 	}
-	//
 
 	glGenBuffers(1, &m_nSSBOTubeID);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nSSBOTubeID);
@@ -256,9 +331,14 @@ void CFibers::DrawTubes(CCamera* pCamera, CShader* pShader, float fRadius)
 	glBindVertexArray(m_nVAOTube);
 
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_nSSBOTubeID);
-	glUniform1f(glGetUniformLocation(pShader->GetID(), "fRadius"), fRadius);
+	GLuint nLocationRadius = glGetUniformLocation(pShader->GetID(), "fRadius");
+	glUniform1f(nLocationRadius, fRadius);
+	pShader->Bind();
+	GLuint nLocationCountSeparations = glGetUniformLocation(pShader->GetID(), "fCountTubeEdges");
+	glUniform1f(nLocationCountSeparations, static_cast<float>(m_nCountTubeEdges));
 	glDrawElementsInstanced(GL_TRIANGLES, m_vecIBOTube.size(), GL_UNSIGNED_INT, 0, m_vecTubes.size());
 	glBindVertexArray(0);
+	pShader->UnBind();
 }
 
 CFibers::CFibers()
