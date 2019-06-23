@@ -20,6 +20,11 @@ void CCamera::SetPerspective(float fFieldOfView, float fAspectRatio, float fNear
 	m_mProjectionMatrix = glm::perspective(fFieldOfView * 3.1415926f / 180.0f, fAspectRatio, fNearClippingplane, fFarClippingPlane);
 }
 
+void CCamera::SetOrthographic(float fLeft, float fRight, float fBottom, float fTop, float fNear, float fFar)
+{
+	m_mProjectionMatrix = glm::ortho(fLeft, fRight, fBottom, fTop, fNear, fFar);
+}
+
 void CCamera::SetOrientation(glm::vec3 EyePosition, glm::vec3 LookAtVector, glm::vec3 UpVector)
 {
 	m_mViewMatrix = glm::lookAt(EyePosition, LookAtVector, UpVector);

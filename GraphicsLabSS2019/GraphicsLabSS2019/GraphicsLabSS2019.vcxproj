@@ -126,9 +126,13 @@
     <ClCompile Include="..\ExternalLibs\ImGUI\imgui_widgets.cpp" />
     <ClCompile Include="..\ExternalLibs\src\glad.c" />
     <ClCompile Include="Camera.cpp" />
+    <ClCompile Include="Exporter.cpp" />
+    <ClCompile Include="FrameBuffer.cpp" />
     <ClCompile Include="ImageLoader.cpp" />
+    <ClCompile Include="Importer.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Fibers.cpp" />
+    <ClCompile Include="ModelObject.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="WindowGLFW.cpp" />
@@ -143,17 +147,29 @@
     <ClInclude Include="..\ExternalLibs\ImGUI\imstb_textedit.h" />
     <ClInclude Include="..\ExternalLibs\ImGUI\imstb_truetype.h" />
     <ClInclude Include="Camera.h" />
+    <ClInclude Include="Exporter.h" />
+    <ClInclude Include="FrameBuffer.h" />
     <ClInclude Include="ImageLoader.h" />
     <ClInclude Include="Fibers.h" />
+    <ClInclude Include="Importer.h" />
+    <ClInclude Include="ModelObject.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="Texture.h" />
     <ClInclude Include="WindowGLFW.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\Shaders\CS_ScreenSpacedEnableVisibleTubes.glsl" />
+    <None Include="..\Shaders\FS_FrameBuffer.glsl" />
     <None Include="..\Shaders\FS_ShowLine.glsl" />
+    <None Include="..\Shaders\FS_ShowPoints.glsl" />
     <None Include="..\Shaders\FS_ShowTube.glsl" />
+    <None Include="..\Shaders\FS_Sphere.glsl" />
+    <None Include="..\Shaders\GS_ShowTube.glsl" />
+    <None Include="..\Shaders\VS_FrameBuffer.glsl" />
     <None Include="..\Shaders\VS_ShowLine.glsl" />
+    <None Include="..\Shaders\VS_ShowPoints.glsl" />
     <None Include="..\Shaders\VS_ShowTube.glsl" />
+    <None Include="..\Shaders\VS_Sphere.glsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

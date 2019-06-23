@@ -1,15 +1,19 @@
 ply
 format ascii 1.0
 comment DTI Tractography, produced by VolVis Invention
-element vertices 4
+element vertices 8
 property float x
 property float y
 property float z
 element fiber 1
 property int endindex
 end_header
-5.0 1.0 1.0
-1.0 5.0 1.0
-5.0 5.0 1.0
-5.0 1.0 1.0
-4
+0.0 0.0 0.0
+1.0 0.0 0.0
+2.0 0.0 0.0
+3.0 0.5 0.0
+4.0 1.0 0.0
+5.0 1.5 0.0
+6.0 2.0 0.0
+7.0 3.0 0.0
+8
