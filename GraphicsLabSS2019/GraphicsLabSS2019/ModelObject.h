@@ -38,6 +38,7 @@ public:
 	/*  Functions  */
 	CMesh(std::vector<Vertex> vertices, std::vector<unsigned int> indices, glm::vec3 minValues, glm::vec3 maxValues);
 	void Draw(CShader* shader);
+	void DrawInstanced(CShader* shader, unsigned int nCount);
 	glm::vec3 getMinValues();
 	glm::vec3 getMaxValues();
 
@@ -56,7 +57,8 @@ class CModel
 public:
 	/*  Functions   */
 	CModel(char *path);
-	void Draw(CShader* shader);
+	void Draw(CShader* pShader);
+	void DrawInstanced(CShader* pShader, unsigned int nCount);
 	glm::vec3 getMinValues();
 	glm::vec3 getMaxValues();
 private:

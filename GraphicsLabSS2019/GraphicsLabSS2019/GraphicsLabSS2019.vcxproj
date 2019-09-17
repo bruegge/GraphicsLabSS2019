@@ -158,13 +158,19 @@
     <ClInclude Include="WindowGLFW.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\Shaders\CS_DeactivateInnerCubes.glsl" />
+    <None Include="..\Shaders\CS_ScreenSpacedDisableCubes.glsl" />
     <None Include="..\Shaders\CS_ScreenSpacedEnableVisibleTubes.glsl" />
+    <None Include="..\Shaders\FS_Cube.glsl" />
     <None Include="..\Shaders\FS_FrameBuffer.glsl" />
     <None Include="..\Shaders\FS_ShowLine.glsl" />
     <None Include="..\Shaders\FS_ShowPoints.glsl" />
     <None Include="..\Shaders\FS_ShowTube.glsl" />
+    <None Include="..\Shaders\FS_ShowTubeWithoutColorPicking.glsl" />
     <None Include="..\Shaders\FS_Sphere.glsl" />
+    <None Include="..\Shaders\GS_ShowCube.glsl" />
     <None Include="..\Shaders\GS_ShowTube.glsl" />
+    <None Include="..\Shaders\VS_Cube.glsl" />
     <None Include="..\Shaders\VS_FrameBuffer.glsl" />
     <None Include="..\Shaders\VS_ShowLine.glsl" />
     <None Include="..\Shaders\VS_ShowPoints.glsl" />

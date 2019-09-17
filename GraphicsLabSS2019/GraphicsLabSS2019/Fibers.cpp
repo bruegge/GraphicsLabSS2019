@@ -1,6 +1,8 @@
 #include "Fibers.h"
+#include <stdio.h>
 #include <iostream>
 #include <fstream>
+#include <errno.h>
 #include <iterator>
 #include <string>
 #include "glm\gtx\vector_angle.hpp"
@@ -187,6 +189,103 @@ void CFibers::LoadFile(const char* pFile)
 	else std::cout << "Unable to open file";
 }
 
+void CFibers::ExportCubes(const char* pFileName)
+{
+	unsigned int nCubeCount = 120 * 130 * 130;
+	std::vector<glm::vec4> data(nCubeCount);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nSSBOCubeFill);
+	glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, nCubeCount * sizeof(glm::vec4), &data[0]);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+	std::string sFile = "../SavedFiles/";
+	sFile += pFileName;
+
+	FILE *pFile;
+	errno_t err;
+	if ((err = fopen_s(&pFile, sFile.c_str(), "w")) == 0)
+	{
+		fwrite(&data[0], nCubeCount * sizeof(glm::vec4), 1, pFile);
+	}
+	fclose(pFile);
+}
+
+void CFibers::ImportCubes(const char* pFileName)
+{
+	unsigned int nCubeCount = 120 * 130 * 130;
+	std::vector<glm::vec4> ndata(nCubeCount);
+
+	std::string sFile = "../SavedFiles/";
+	sFile += pFileName;
+
+	FILE *pFile;
+	errno_t err;
+	if ((err = fopen_s(&pFile, sFile.c_str(), "r")) == 0)
+	{
+		fread(&ndata[0], nCubeCount * sizeof(glm::vec4), 1, pFile);
+	}
+	fclose(pFile);
+
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nSSBOCubeFill);
+	glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, nCubeCount * sizeof(glm::vec4), &ndata[0]);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+void CFibers::ExportTubeInfo(const char* pFileName)
+{
+	std::vector<STubeInfo> data(m_vecTubes.size());
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nSSBOTubeID);
+	glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, data.size() * sizeof(STubeInfo), &data[0]);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+	std::string sFile = "../SavedFiles/";
+	std::string sEnding = "Info";
+	sFile += pFileName;
+	std::string sInfo = sFile + sEnding;
+	FILE *pFile;
+	errno_t err;
+	unsigned int nTubeCount = data.size();
+	if ((err = fopen_s(&pFile, sInfo.c_str(), "w")) == 0)
+	{
+		fwrite(&nTubeCount, sizeof(unsigned int), 1, pFile);
+	}
+	fclose(pFile);
+
+	if ((err = fopen_s(&pFile, sFile.c_str(), "w")) == 0)
+	{
+		fwrite(&data[0], data.size() * sizeof(STubeInfo), 1, pFile);
+	}
+	fclose(pFile);
+
+}
+
+void CFibers::ImportTubeInfo(const char* pFileName)
+{
+	std::string sFile = "../SavedFiles/";
+	std::string sEnding = "Info";
+	sFile += pFileName;
+	std::string sInfo = sFile + sEnding;
+	FILE *pFile;
+	errno_t err;
+	unsigned int nTubeCount = 0;
+
+	if ((err = fopen_s(&pFile, sInfo.c_str(), "r")) == 0)
+	{
+		fread(&nTubeCount, sizeof(unsigned int), 1, pFile);
+	}
+	fclose(pFile);
+
+	if ((err = fopen_s(&pFile, sFile.c_str(), "r")) == 0)
+	{
+		m_vecTubes.resize(nTubeCount);
+		fread(&m_vecTubes[0], nTubeCount * sizeof(STubeInfo), 1, pFile);
+	}
+	fclose(pFile);
+
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nSSBOTubeID);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, nTubeCount * sizeof(STubeInfo), &m_vecTubes[0], GL_STATIC_DRAW);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
 void CFibers::GenerateBuffers()
 {
 	glGenVertexArrays(1, &m_nVAOLines);
@@ -214,12 +313,17 @@ void CFibers::GenerateBuffers()
 
 	glGenBuffers(1, &m_nVBOExport);
 	glGenBuffers(1, &m_nIBOExport);
+	glGenBuffers(1, &m_nVBOExportCube);
 
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nVBOExport);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, 10, nullptr, GL_STATIC_DRAW);
 
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nIBOExport);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, 10, nullptr, GL_STATIC_DRAW);
+	
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nVBOExportCube);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, 10, nullptr, GL_STATIC_DRAW);
+	
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 
 	glBindBuffer(GL_ARRAY_BUFFER, m_nVBOExport);
@@ -514,7 +618,6 @@ void CFibers::GenerateAndFillTubeBuffer()
 		nIBOIndex++;
 	}
 
-	glGenBuffers(1, &m_nSSBOTubeID);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nSSBOTubeID);
 	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(STubeInfo) * m_vecTubes.size(), &m_vecTubes[0], GL_STATIC_DRAW);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
@@ -570,24 +673,28 @@ void CFibers::DrawLines(CCamera* pCamera, CShader* pShader)
 	glDisable(GL_PRIMITIVE_RESTART);
 }
 
-void CFibers::DrawTubes(CCamera* pCamera, CShader* pShader, CFrameBuffer* pFrameBuffer, float fRadius, unsigned int nRenderMode, unsigned int nVisibleTubeMode)
+void CFibers::DrawTubes(CCamera* pCamera, CShader* pShader, CFrameBuffer* pFrameBuffer, float fRadius, unsigned int nRenderMode, unsigned int nVisibleTubeMode, bool bAndLinkage)
 {
 	if (pFrameBuffer)
 	{
 		pFrameBuffer->Bind();
 	}
-	glBindVertexArray(m_nVAOTube);
 
+	pShader->Bind();
+	glBindVertexArray(m_nVAOTube);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_nSSBOTubeID);
 	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, m_nSSBOFibersIgnoreCuttingPlane);
-	pShader->Bind();
+
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, m_nVBOExport);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, m_nIBOExport);
+
 	GLuint nLocationRadius = glGetUniformLocation(pShader->GetID(), "fRadius");
 	glUniform1f(nLocationRadius, fRadius);
 	GLint nUniformLocationRenderMode = glGetUniformLocation(pShader->GetID(), "nRenderMode");
 	glUniform1i(nUniformLocationRenderMode, nRenderMode);
 	GLint nUniformLocationVisibleTubeMode = glGetUniformLocation(pShader->GetID(), "nVisibleTubeMode");
 	glUniform1i(nUniformLocationVisibleTubeMode, nVisibleTubeMode);
-
+	
 	GLint nUniformLocationViewProjectionMatrix = glGetUniformLocation(pShader->GetID(), "viewProjectionMatrix");
 	glm::mat4 mViewProjectionMatrix = pCamera->GetViewProjectionMatrix();
 	glUniformMatrix4fv(nUniformLocationViewProjectionMatrix, 1, GL_FALSE, &(mViewProjectionMatrix[0][0]));
@@ -602,6 +709,8 @@ void CFibers::DrawTubes(CCamera* pCamera, CShader* pShader, CFrameBuffer* pFrame
 	glUniform1i(nLocationEnablePlaneEnd, m_nEnablePlaneEnd);
 	GLuint nLocationEnablePlaneStart = glGetUniformLocation(pShader->GetID(), "nEnablePlaneStart");
 	glUniform1i(nLocationEnablePlaneStart, m_nEnablePlaneStart);
+	GLuint nLocationAndLinkage = glGetUniformLocation(pShader->GetID(), "bAndLinkage");
+	glUniform1i(nLocationAndLinkage, static_cast<int>(bAndLinkage));
 
 	if (m_vecCuttingPlaneEnabled.size())
 	{
@@ -638,29 +747,95 @@ void CFibers::DrawTubes(CCamera* pCamera, CShader* pShader, CFrameBuffer* pFrame
 		glUniform1i(nLocationOffset, nFiberStart);
 		glDrawElementsInstanced(GL_TRIANGLES, m_vecIBOTube.size(), GL_UNSIGNED_INT, 0, nTubeCount);
 	}
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 5, 0);
+
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, 0);
 	glBindVertexArray(0);
 	pShader->UnBind();
 
-	if (m_bEnableExport)
-	{
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nVBOExport);
-		std::vector<glm::vec4> dataVBO(m_vecTubes.size() * m_nCountTubeEdges * 2);
-		glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, m_vecTubes.size() * m_nCountTubeEdges * 2 * sizeof(glm::vec4), dataVBO.data());
-		glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nIBOExport);
-		std::vector<GLuint> dataIBO(m_vecTubes.size() * m_nCountTubeEdges * 6);
-		glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, m_vecTubes.size() * m_nCountTubeEdges * 6 * sizeof(GLuint), dataIBO.data());
-		
-		std::vector<STubeInfo> data(m_vecTubes.size());
-		glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, m_vecTubes.size() * sizeof(STubeInfo), &data[0]);
-
-		m_pExporter->Export("d:/backup/test.obj", &dataVBO, &dataIBO);
-		
-	}
-	m_bEnableExport = false;
 	if (pFrameBuffer)
 	{
 		pFrameBuffer->UnBind();
 	}
+	glFinish();
+}
+
+void CFibers::TubeBufferToCPU()
+{
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nSSBOTubeID);
+	glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, m_vecTubes.size() * sizeof(STubeInfo), &m_vecTubes[0]);
+	
+	for (unsigned int i = 0; i < m_vecTubes.size(); ++i)
+	{
+		if (m_vecTubes[i].nVisibleTube == 3)
+		{
+			int muh = 0;
+			muh++;
+		}
+	}
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+void CFibers::Export()
+{
+	if (m_bEnableExport)
+	{
+
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nVBOExport);
+		std::vector<glm::vec4> dataVBO(m_vecTubes.size() * m_nCountTubeEdges * 2);
+		glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, dataVBO.size() * sizeof(glm::vec4), &dataVBO[0]);
+		glFinish();
+
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nIBOExport);
+		std::vector<GLuint> dataIBO(m_vecTubes.size() * m_nCountTubeEdges * 6);
+		glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, dataIBO.size() * sizeof(GLuint), &dataIBO[0]);
+		glFinish();
+		
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nVBOExportCube);
+		unsigned int nCountCubeVetices = 120 * 130 * 130 * 36;
+		std::vector<glm::vec4> dataVBOCube(nCountCubeVetices);
+		glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, dataVBOCube.size() * sizeof(glm::vec4), &dataVBOCube[0]);
+		glFinish();
+
+		m_pExporter->Export("d:/backup/test.obj", &dataVBO, &dataIBO, &dataVBOCube);
+
+		glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+	}
+	m_bEnableExport = false;
+}
+
+void CFibers::ActivateExport()
+{
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nVBOExport);
+	std::vector<glm::vec4> dataVBO(m_vecTubes.size() * m_nCountTubeEdges * 2);
+	for (unsigned int i = 0; i < dataVBO.size(); ++i)
+	{
+		dataVBO[i] = glm::vec4(0, 0, 0, 0);
+	}
+	glBufferData(GL_SHADER_STORAGE_BUFFER, dataVBO.size() * sizeof(glm::vec4), &dataVBO[0], GL_STATIC_DRAW);
+
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nIBOExport);
+	std::vector<GLuint> dataIBO(m_vecTubes.size() * m_nCountTubeEdges * 6);
+	for (unsigned int i = 0; i < dataVBO.size(); ++i)
+	{
+		dataIBO[i] = 0;
+	}
+	glBufferData(GL_SHADER_STORAGE_BUFFER, dataIBO.size() * sizeof(GLuint), &dataIBO[0], GL_STATIC_DRAW);
+
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nVBOExportCube);
+	unsigned int nCountCubeVetices = 120 * 130 * 130 * 36;
+	std::vector<glm::vec4> dataVBOCube(nCountCubeVetices);
+	for (unsigned int i = 0; i < dataVBOCube.size(); ++i)
+	{
+		dataVBOCube[i] = glm::vec4(0, 0, 0, 0);
+	}
+	glBufferData(GL_SHADER_STORAGE_BUFFER, dataVBOCube.size() * sizeof(glm::vec4), &dataVBOCube[0], GL_STATIC_DRAW);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+	m_bEnableExport = true;
 }
 
 void CFibers::DrawPoints(CCamera* pCamera, CShader* pShader)
@@ -674,39 +849,30 @@ void CFibers::DrawPoints(CCamera* pCamera, CShader* pShader)
 void CFibers::BringEndingsTogether()
 {
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nSSBOTubeID);
-	std::vector<STubeInfo> data(m_vecTubes.size());
-	glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, m_vecTubes.size() * sizeof(STubeInfo), &data[0]);
+	glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, m_vecTubes.size() * sizeof(STubeInfo), &m_vecTubes[0]);
 
-	for (unsigned int i = 1; i < data.size()-1; ++i)
+	for (unsigned int i = 1; i < m_vecTubes.size()-1; ++i)
 	{
-		if (data[i].nVisibleTube == 0)
+		unsigned int nVisible1 = m_vecTubes[i].nVisibleTube & 0x00000001; 
+		unsigned int nVisible2 = m_vecTubes[i].nVisibleTube & 0x00000002;
+		
+		if (nVisible2 == 0 || nVisible1 == 0)
 		{
-			data[i + 1].fEnableStartPlane = 0;
-			data[i - 1].fEnableEndPlane = 0;
+			m_vecTubes[i + 1].fEnableStartPlane = 0;
+			m_vecTubes[i - 1].fEnableEndPlane = 0;
+
+			m_vecTubes[i].fEnableStartPlane = 0;
+			m_vecTubes[i].fEnableEndPlane = 0;
 		}
 	}
 
-	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(STubeInfo) * data.size(), &data[0], GL_STATIC_DRAW);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(STubeInfo) * m_vecTubes.size(), &m_vecTubes[0], GL_STATIC_DRAW);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
 }
 
 unsigned int CFibers::GetFiberCount()
 {
 	return m_nCountFibers;
-}
-
-void CFibers::Export()
-{
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nVBOExport);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, m_vecTubes.size() * m_nCountTubeEdges * 2 * sizeof(glm::vec4), nullptr, GL_STATIC_DRAW);
-
-	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nIBOExport);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, m_vecTubes.size() * m_nCountTubeEdges * 6 * sizeof(GLuint), nullptr, GL_STATIC_DRAW);
-
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, m_nVBOExport);
-	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, m_nIBOExport);
-
-	m_bEnableExport = true;
 }
 
 void CFibers::SetCuttingPlaneVectors(std::vector<bool>& vecCuttingPlaneEnabled, std::vector<glm::vec4>& vecCuttingPlaneVectors)
@@ -758,18 +924,46 @@ void CFibers::IgnoreCuttingPlaneForSphere(glm::vec3 vPosition, float fRadius)
 		}
 	}
 
-	
-
 }
 
-
-CFibers::CFibers()
+CFibers::CFibers(CWindowGLFW* pWindow)
 {
+	m_pWindow = pWindow;
 	m_nCountTubeEdges = 3;
 	m_pExporter = new CExporter();
 	m_pFrameBufferRenderVisibleTubes = new CFrameBuffer(2048, 2048, nullptr);
 	m_pShaderScreenSpacedEnableVisibleTubes = new CShader();
 	m_pShaderScreenSpacedEnableVisibleTubes->CreateComputeShaderProgram("../Shaders/CS_ScreenSpacedEnableVisibleTubes.glsl");
+	m_pShaderDrawCubes = new CShader();
+	m_pShaderDrawCubes->CreateShaderProgram("../Shaders/VS_Cube.glsl", nullptr, nullptr, "../Shaders/GS_ShowCube.glsl", "../Shaders/FS_Cube.glsl");
+	m_pShaderDrawTubesWithoutColorPicking = new CShader();
+	m_pShaderDrawTubesWithoutColorPicking->CreateShaderProgram("../Shaders/VS_ShowTube.glsl", nullptr, nullptr, "../Shaders/GS_ShowTube.glsl", "../Shaders/FS_ShowTubeWithoutColorPicking.glsl");
+	m_pShaderScreenSpacedDisableCubes = new CShader();
+	m_pShaderScreenSpacedDisableCubes->CreateComputeShaderProgram("../Shaders/CS_ScreenSpacedDisableCubes.glsl");
+	m_pShaderDeactivateInnerCubes = new CShader();
+	m_pShaderDeactivateInnerCubes->CreateComputeShaderProgram("../Shaders/CS_DeactivateInnerCubes.glsl");
+	m_pCubeModel = new CModel("../Models/Cube.obj");
+	std::vector<SCubeFill> vecData(120 * 130 * 130 + 1);
+	unsigned int nCount = 1;
+	vecData[0].vPositionEnabled = glm::vec4(0, 0, 0, 0);
+	for (int x = -60; x < 60; ++x)
+	{
+		for (int y = -80; y < 50; ++y)
+		{
+			for (int z = -60; z < 70; ++z)
+			{
+				vecData[nCount].vPositionEnabled = glm::vec4(x, y, z, 1);
+				nCount++;
+			}
+		}
+	}
+	glGenBuffers(1, &m_nSSBOCubeFill);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nSSBOCubeFill);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, vecData.size() * sizeof(SCubeFill), &vecData[0], GL_STATIC_DRAW);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	glGenBuffers(1, &m_nSSBOTubeID);
+
+	GenerateCubeBuffers();
 }
 
 CFibers::~CFibers()
@@ -785,17 +979,15 @@ CFibers::~CFibers()
 	}
 }
 
-void CFibers::DisableHiddenFibers(CShader* pShader, float fRadiusTubes)
+void CFibers::DetectConnectedBodies()
 {
-	//reset SSBO visibility
-	for (unsigned int i = 0; i < m_vecTubes.size(); ++i)
-	{
-		m_vecTubes[i].nVisibleTube = 0;
-	}
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nSSBOTubeID);
-	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(STubeInfo) * m_vecTubes.size(), &m_vecTubes[0], GL_STATIC_DRAW);
+	glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(STubeInfo) * m_vecTubes.size(), &m_vecTubes[0]);
 	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
-	
+}
+
+std::vector<glm::vec3> CFibers::GenerateCamerasAroundObject()
+{
 	//generate camera positions
 	unsigned int nDivision = 10;
 	std::vector<glm::vec3> vecCameraPosition(nDivision * nDivision * 6);
@@ -855,12 +1047,36 @@ void CFibers::DisableHiddenFibers(CShader* pShader, float fRadiusTubes)
 			}
 		}
 	}
+	std::swap(vecCameraPosition[0], vecCameraPosition[50]);
+	std::swap(vecCameraPosition[1], vecCameraPosition[150]);
+	std::swap(vecCameraPosition[2], vecCameraPosition[250]);
+	std::swap(vecCameraPosition[3], vecCameraPosition[350]);
+	std::swap(vecCameraPosition[4], vecCameraPosition[450]);
+	std::swap(vecCameraPosition[5], vecCameraPosition[550]);
 
-	//generate camera
-	CCamera oCamera;
-	oCamera.SetOrthographic(-fRadius, fRadius, -fRadius, fRadius, 0.001f, fRadius * 3.0f);
+	return vecCameraPosition;
+}
+
+void CFibers::DisableHiddenFibers(CShader* pShader, float fRadiusTubes, bool bAndLinkage)
+{
+	//reset SSBO visibility
+	for (unsigned int i = 0; i < m_vecTubes.size(); ++i)
+	{
+		m_vecTubes[i].nVisibleTube = 0;
+	}
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nSSBOTubeID);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, sizeof(STubeInfo) * m_vecTubes.size(), &m_vecTubes[0], GL_STATIC_DRAW);
 	
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_nSSBOTubeID);
+	//generate camera
+	std::vector<glm::vec3> vecCameraPosition = GenerateCamerasAroundObject();
+	glm::vec3 vCenter = m_vMaxVertex + m_vMinVertex * 0.5f;
+	CCamera oCamera;
+	float fRadius = glm::length(m_vMaxVertex - m_vMinVertex) * 0.5f;
+	oCamera.SetOrthographic(-fRadius, fRadius, -fRadius, fRadius, 0.001f, fRadius * 3.0f);
+
 	//Render from all directions
+	GLint nShaderID = m_pShaderScreenSpacedEnableVisibleTubes->GetID();
 	for (unsigned int i = 0; i < vecCameraPosition.size(); ++i)
 	{
 		glm::vec3 vViewDirection;
@@ -878,11 +1094,12 @@ void CFibers::DisableHiddenFibers(CShader* pShader, float fRadiusTubes)
 			oCamera.SetOrientation(vecCameraPosition[i], glm::normalize(vCenter - vecCameraPosition[i]), glm::vec3(0, 0, 1));
 		}
 		m_pFrameBufferRenderVisibleTubes->Clear();
-		this->DrawTubes(&oCamera, pShader, m_pFrameBufferRenderVisibleTubes, fRadiusTubes, 0, 3);
+		this->DrawTubes(&oCamera, pShader, m_pFrameBufferRenderVisibleTubes, fRadiusTubes, 0, 3, bAndLinkage);
 		
 		//execute computeshader for enable visible tubes
 		m_pShaderScreenSpacedEnableVisibleTubes->Bind();
-		GLint nShaderID = m_pShaderScreenSpacedEnableVisibleTubes->GetID();
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_nSSBOTubeID);
+
 		GLint baseImageLoc = glGetUniformLocation(nShaderID, "sTexture");
 		
 		glActiveTexture(GL_TEXTURE0);
@@ -890,7 +1107,276 @@ void CFibers::DisableHiddenFibers(CShader* pShader, float fRadiusTubes)
 		glUniform1i(baseImageLoc, 0);
 		
 		glDispatchCompute(2048, 2048, 1);
-		m_pShaderScreenSpacedEnableVisibleTubes->UnBind();	
+		m_pShaderScreenSpacedEnableVisibleTubes->UnBind();
+		glFinish();
+		std::cout << "CameraPosition " << i << std::endl;	
+	}
+	glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, m_vecTubes.size() * sizeof(STubeInfo), &m_vecTubes[0]);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
+}
+
+void CFibers::DrawCubes(CCamera* pCamera, CShader* pShader, CFrameBuffer* pFrameBuffer, bool bDefineAsVisible, bool bAndLinkage)
+{
+	if (pFrameBuffer)
+	{
+		pFrameBuffer->Bind();
+	}
+	pShader->Bind();
+	glBindVertexArray(m_nVAOCube);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_nSSBOCubeFill);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, m_nVBOExportCube);
+
+	GLint nUniformLocationViewProjectionMatrix = glGetUniformLocation(pShader->GetID(), "viewProjectionMatrix");
+	glm::mat4 mViewProjectionMatrix = pCamera->GetViewProjectionMatrix();
+	glUniformMatrix4fv(nUniformLocationViewProjectionMatrix, 1, GL_FALSE, &(mViewProjectionMatrix[0][0]));
+	GLuint nLocationEnableExport = glGetUniformLocation(pShader->GetID(), "nEnableExport");
+	glUniform1i(nLocationEnableExport, static_cast<int>(m_bEnableExport));
+
+	GLuint nLocationAndLinkage = glGetUniformLocation(pShader->GetID(), "bAndLinkage");
+	glUniform1i(nLocationAndLinkage, static_cast<int>(bAndLinkage));
+
+	GLuint nLocationDefineAsVisible = glGetUniformLocation(pShader->GetID(), "bDefineAsVisible");
+	glUniform1i(nLocationDefineAsVisible, static_cast<int>(bDefineAsVisible));
+
+	if (m_vecCuttingPlaneEnabled.size())
+	{
+		GLuint nLocationEnableCuttingPlane = glGetUniformLocation(pShader->GetID(), "nEnableCuttingPlane");
+		glUniform1iv(nLocationEnableCuttingPlane, m_vecCuttingPlaneEnabled.size(), &m_vecCuttingPlaneEnabled[0]);
+
+		GLuint nLocationCuttingPlane = glGetUniformLocation(pShader->GetID(), "vCuttingPlane");
+		GLfloat* pTemp = new GLfloat[m_vecCuttingPlaneEnabled.size() * 4];
+		for (unsigned int i = 0; i < m_vecCuttingPlaneEnabled.size(); ++i)
+		{
+			pTemp[i * 4 + 0] = m_vecCuttingPlaneVectors[i].x;
+			pTemp[i * 4 + 1] = m_vecCuttingPlaneVectors[i].y;
+			pTemp[i * 4 + 2] = m_vecCuttingPlaneVectors[i].z;
+			pTemp[i * 4 + 3] = m_vecCuttingPlaneVectors[i].a;
+		}
+		glUniform4fv(nLocationCuttingPlane, m_vecCuttingPlaneEnabled.size(), pTemp);
+		delete[] pTemp;
+	}
+	GLuint nLocationCountCuttingPlanes = glGetUniformLocation(pShader->GetID(), "nCountCuttingPlanes");
+	glUniform1i(nLocationCountCuttingPlanes, m_vecCuttingPlaneEnabled.size());
+
+	glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT,0, 120 * 130 * 130);
+
+	glBindVertexArray(0);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 1, 0); 
+	pShader->UnBind();
+
+	if (pFrameBuffer)
+	{
+		pFrameBuffer->UnBind();
+	}
+	glFinish();
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nSSBOCubeFill);
+	glm::vec4 data = glm::vec4(0,0,0,0);
+	glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, sizeof(glm::vec4) * 5, sizeof(glm::vec4), &data);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+}
+
+void CFibers::FillInsideWithCubes(float fRadiusTubes, bool bAndLinkage, unsigned int nCountTubeEdges)
+{
+	std::vector<SCubeFill> vecData(120 * 130 * 130 + 1);
+	unsigned int nCount = 1;
+	vecData[0].vPositionEnabled = glm::vec4(0, 0, 0, 0);
+	for (int x = -60; x < 60; ++x)
+	{
+		for (int y = -80; y < 50; ++y)
+		{
+			for (int z = -60; z < 70; ++z)
+			{
+				vecData[nCount].vPositionEnabled = glm::vec4(x, y, z, 1);
+				nCount++;
+			}
+		}
+	}
+	
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nSSBOCubeFill);
+	glBufferData(GL_SHADER_STORAGE_BUFFER, vecData.size() * sizeof(SCubeFill), &vecData[0], GL_STATIC_DRAW);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+	std::vector<glm::vec3> vecCameraPosition = GenerateCamerasAroundObject();
+
+	glm::vec3 vCenter = m_vMaxVertex + m_vMinVertex * 0.5f;
+	CCamera oCamera;
+	float fRadius = glm::length(m_vMaxVertex - m_vMinVertex) * 0.5f;
+	oCamera.SetOrthographic(-fRadius, fRadius, -fRadius, fRadius, 0.001f, fRadius * 3.0f);
+
+	//Render from all directions
+	for (unsigned int i = 0; i < vecCameraPosition.size(); ++i)
+	{
+		glm::vec3 vViewDirection;
+		vViewDirection = glm::normalize(vCenter - vecCameraPosition[i]);
+		vViewDirection.x = abs(vViewDirection.x);
+		vViewDirection.y = abs(vViewDirection.y);
+		vViewDirection.z = abs(vViewDirection.z);
+
+		if (vViewDirection != glm::vec3(0, 1, 0))
+		{
+			oCamera.SetOrientation(vecCameraPosition[i], glm::normalize(vCenter - vecCameraPosition[i]), glm::vec3(0, 1, 0));
+		}
+		else
+		{
+			oCamera.SetOrientation(vecCameraPosition[i], glm::normalize(vCenter - vecCameraPosition[i]), glm::vec3(0, 0, 1));
+		}
+		glm::vec4 vRepeat = glm::vec4(0, 0, 0, 0);
+		int nCount = 0;
+		do
+		{
+			nCount++;
+			m_pFrameBufferRenderVisibleTubes->Bind();
+			m_pFrameBufferRenderVisibleTubes->Clear();
+			
+			this->DrawTubes(&oCamera, m_pShaderDrawTubesWithoutColorPicking, m_pFrameBufferRenderVisibleTubes, fRadiusTubes, 0, 3, bAndLinkage);
+			this->DrawCubes(&oCamera, m_pShaderDrawCubes, m_pFrameBufferRenderVisibleTubes, false, bAndLinkage);
+			glFinish();
+			//execute computeshader for enable visible tubes
+			m_pShaderScreenSpacedDisableCubes->Bind();
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_nSSBOCubeFill);
+			GLint nShaderID = m_pShaderScreenSpacedDisableCubes->GetID();
+			GLint baseImageLoc = glGetUniformLocation(nShaderID, "sTexture");
+
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, m_pFrameBufferRenderVisibleTubes->GetColorPickingTexture());
+			glUniform1i(baseImageLoc, 0);
+
+			glDispatchCompute(2048, 2048, 1);
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nSSBOCubeFill);
+
+			glFinish();
+			glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(SCubeFill), &vRepeat);
+			glm::vec4 zero = glm::vec4(0, 0, 0, 0);
+			glBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, sizeof(SCubeFill), &zero);
+			glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
+			glFinish();
+		} while (vRepeat != glm::vec4(0, 0, 0, 0));
+		
+		m_pShaderScreenSpacedDisableCubes->UnBind();
+		std::cout << "CameraPosition " << i << std::endl;
+
+	}
+	
+
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nSSBOCubeFill);
+	glm::vec4 data = glm::vec4(0, 0, 0, 0);
+	glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, sizeof(glm::vec4) * 5, sizeof(glm::vec4), &data);
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+
+}
+
+void CFibers::DeactivateInnerCubes()
+{
+	m_pShaderDeactivateInnerCubes->Bind();
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_nSSBOCubeFill);
+	glDispatchCompute(120, 130, 130);
+	glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, 0);
+	m_pShaderDeactivateInnerCubes->UnBind();
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, m_nSSBOCubeFill);
+	std::vector<glm::vec4> vecData(120 * 130 * 130);
+	glGetBufferSubData(GL_SHADER_STORAGE_BUFFER, 0, 120*130*130 * sizeof(glm::vec4), &vecData[0]);
+	for (unsigned int i = 0; i < vecData.size(); ++i)
+	{
+		if (vecData[i].a != 0)
+		{
+			int muh = 0;
+			muh++;
+		}
+	}
+	glBindBuffer(GL_SHADER_STORAGE_BUFFER, 0);
+}
+
+void CFibers::GenerateCubeBuffers()
+{
+	glGenVertexArrays(1, &m_nVAOCube);
+	glGenBuffers(1, &m_nVBOCube);
+	glGenBuffers(1, &m_nIBOCube);
+
+	glBindVertexArray(m_nVAOCube);
+	// load data into vertex buffers
+	glBindBuffer(GL_ARRAY_BUFFER, m_nVBOCube);
+	// A great thing about structs is that their memory layout is sequential for all its items.
+	// The effect is that we can simply pass a pointer to the struct and it translates perfectly to a glm::vec3/2 array which
+	// again translates to 3/2 floats which translates to a byte array.
+	std::vector<glm::vec4> vecVertices(36);
+	/*vecVertices[0] = glm::vec4(-0.5f, -0.5f, -0.5f, 1);
+	vecVertices[1] = glm::vec4(-0.5f, -0.5f, 0.5f, 1);
+	vecVertices[2] = glm::vec4(0.5f, -0.5f, 0.5f, 1);
+	vecVertices[3] = glm::vec4(0.5f, -0.5f, -0.5f, 1);
+	vecVertices[4] = glm::vec4(-0.5f, 0.5f, -0.5f, 1);
+	vecVertices[5] = glm::vec4(-0.5f, 0.5f, 0.5f, 1);
+	vecVertices[6] = glm::vec4(0.5f, 0.5f, 0.5f, 1);
+	vecVertices[7] = glm::vec4(0.5f, 0.5f, -0.5f, 1);
+	*/
+	float fLength = 0.5f;
+	vecVertices[0] = glm::vec4(-fLength, -fLength, -fLength, 1);//B
+	vecVertices[1] = glm::vec4(fLength, -fLength, fLength, 1);
+	vecVertices[2] = glm::vec4(-fLength, -fLength, fLength, 1);
+
+	vecVertices[3] = glm::vec4(-fLength, -fLength, -fLength, 1);//B
+	vecVertices[4] = glm::vec4(fLength, -fLength, -fLength, 1);
+	vecVertices[5] = glm::vec4(fLength, -fLength, fLength, 1);
+	
+	vecVertices[6] = glm::vec4(-fLength, -fLength, -fLength, 1);//F
+	vecVertices[7] = glm::vec4(-fLength, fLength, -fLength, 1);
+	vecVertices[8] = glm::vec4(fLength, fLength, -fLength, 1);
+	
+	vecVertices[9] = glm::vec4(-fLength, -fLength, -fLength, 1);//F
+	vecVertices[10] = glm::vec4(fLength, fLength, -fLength, 1);
+	vecVertices[11] = glm::vec4(fLength, -fLength, -fLength, 1);
+	
+	vecVertices[12] = glm::vec4(-fLength, -fLength, fLength, 1);//L
+	vecVertices[13] = glm::vec4(-fLength, fLength, fLength, 1);
+	vecVertices[14] = glm::vec4(-fLength, fLength, -fLength, 1);
+	
+	vecVertices[15] = glm::vec4(-fLength, -fLength, fLength, 1);//L
+	vecVertices[16] = glm::vec4(-fLength, fLength, -fLength, 1);
+	vecVertices[17] = glm::vec4(-fLength, -fLength, -fLength, 1);
+	
+	vecVertices[18] = glm::vec4(fLength, -fLength, fLength, 1);//Back
+	vecVertices[19] = glm::vec4(fLength, fLength, fLength, 1);
+	vecVertices[20] = glm::vec4(-fLength, fLength, fLength, 1);
+	
+	vecVertices[21] = glm::vec4(fLength, -fLength, fLength, 1);//Back
+	vecVertices[22] = glm::vec4(-fLength, fLength, fLength, 1);
+	vecVertices[23] = glm::vec4(-fLength, -fLength, fLength, 1);
+	
+	vecVertices[24] = glm::vec4(fLength, -fLength, -fLength, 1);//R
+	vecVertices[25] = glm::vec4(fLength, fLength, -fLength, 1);
+	vecVertices[26] = glm::vec4(fLength, fLength, fLength, 1);
+	
+	vecVertices[27] = glm::vec4(fLength, -fLength, -fLength, 1);//R
+	vecVertices[28] = glm::vec4(fLength, fLength, fLength, 1);
+	vecVertices[29] = glm::vec4(fLength, -fLength, fLength, 1);
+	
+	vecVertices[30] = glm::vec4(-fLength, fLength, -fLength, 1);//T
+	vecVertices[31] = glm::vec4(-fLength, fLength, fLength, 1);
+	vecVertices[32] = glm::vec4(fLength, fLength, fLength, 1);
+	
+	vecVertices[33] = glm::vec4(-fLength, fLength, -fLength, 1);//T
+	vecVertices[34] = glm::vec4(fLength, fLength, fLength, 1);
+	vecVertices[35] = glm::vec4(fLength, fLength, -fLength, 1);
+
+	glBufferData(GL_ARRAY_BUFFER, vecVertices.size() * sizeof(glm::vec4), &vecVertices[0], GL_STATIC_DRAW);
+
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_nIBOCube);
+	std::vector<GLuint> vecIBO(36);
+	for (unsigned int i = 0; i < vecIBO.size(); ++i)
+	{
+		vecIBO[i] = i;
 	}
 
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, vecIBO.size() * sizeof(GLuint), &vecIBO[0], GL_STATIC_DRAW);
+	
+	// set the vertex attribute pointers
+	// vertex Positions
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(glm::vec4), (void*)0);
+
+	glBindVertexArray(0);
 }

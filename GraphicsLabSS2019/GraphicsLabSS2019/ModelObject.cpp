@@ -78,6 +78,16 @@ void CMesh::Draw(CShader* shader)
 	glBindVertexArray(0);
 }
 
+void CMesh::DrawInstanced(CShader* shader, unsigned int nCount)
+{
+	glBindVertexArray(VAO);
+
+	glUniform1i(glGetUniformLocation(shader->GetID(), "MeshID"), this->m_nMeshID);
+	// draw mesh
+	glDrawElementsInstanced(GL_TRIANGLES, indices.size(), GL_UNSIGNED_INT, 0, nCount);
+	glBindVertexArray(0);
+}
+
 
 
 CModel::CModel(char *path)
@@ -85,11 +95,19 @@ CModel::CModel(char *path)
 	loadModel(path);
 }
 
-void CModel::Draw(CShader* shader)
+void CModel::Draw(CShader* pShader)
 {
 	for (unsigned int i = 0; i < meshes.size(); i++)
 	{
-		meshes[i].Draw(shader);
+		meshes[i].Draw(pShader);
+	}
+}
+
+void CModel::DrawInstanced(CShader* pShader, unsigned int nCount)
+{
+	for (unsigned int i = 0; i < meshes.size(); i++)
+	{
+		meshes[i].DrawInstanced(pShader, nCount);
 	}
 }
 
@@ -123,11 +141,6 @@ void CModel::loadModel(std::string path)
 			this->minValues.y = std::min(this->minValues.y, this->meshes[i].getMinValues().y);
 			this->minValues.z = std::min(this->minValues.z, this->meshes[i].getMinValues().z);
 		}
-	}
-	else
-	{
-		int muh = 0;
-		muh++;
 	}
 	return;
 }

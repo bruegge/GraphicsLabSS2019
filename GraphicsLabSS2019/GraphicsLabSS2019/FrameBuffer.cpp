@@ -70,6 +70,9 @@ CFrameBuffer::CFrameBuffer(unsigned int nWidth, unsigned int nHeight, CShader* p
 	glDrawBuffers(1, DrawBuffers);
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	m_pShader = new CShader();
+	m_pShader->CreateShaderProgram("../Shaders/VS_FrameBuffer.glsl", nullptr, nullptr, nullptr, "../Shaders/FS_FrameBuffer.glsl");
 }
 
 

@@ -20,23 +20,28 @@ CShader* pShaderTube = nullptr;
 CShader* pShaderPoints = nullptr;
 CShader* pShaderFrameBuffer = nullptr;
 CShader* pShaderSphere = nullptr;
+CShader* pShaderCube = nullptr;
 CFibers* pFibers = nullptr;
 CFrameBuffer* pFrameBuffer = nullptr;
 CModel* pSphere = nullptr;
 
+bool bExport = false;
+bool bAndLinkage = false;
 bool bEnableShowFromCameraPosition = false;
 bool bEnableWireFrame = false;
 bool bEnableSphereMarker = false;
 bool bDrawLine = true;
 bool bDrawTube = false;
+bool bDrawCube = false; 
 bool bDrawPoints = false;
 bool bEnablePlaneStart = false;
 bool bEnablePlaneEnd = false;
 bool bEnableCuttingPlane0 = false;
 bool bEnableCuttingPlane1 = false;
+bool bDefineCubeAsVisible = false;
 float fCameraRotationSpeed = 1.0f;
 float fCameraTranslationSpeed = 1.0f;
-float fRadius = 0.1f;
+float fRadius = 1.2f;
 float fSphereRadius = 1.0f;
 float fPointSize = 2.0f;
 glm::vec3 vSpherePosition = glm::vec3(0, 0, 0);
@@ -62,12 +67,14 @@ void LoadContent()
 	pShaderPoints->CreateShaderProgram("../Shaders/VS_ShowPoints.glsl", nullptr, nullptr, nullptr, "../Shaders/FS_ShowPoints.glsl");
 	pShaderFrameBuffer = new CShader();
 	pShaderFrameBuffer->CreateShaderProgram("../Shaders/VS_FrameBuffer.glsl", nullptr, nullptr, nullptr, "../Shaders/FS_FrameBuffer.glsl");
-	pFibers = new CFibers();
-	pFrameBuffer = new CFrameBuffer(pWindow->GetWindowSize().x, pWindow->GetWindowSize().y, pShaderFrameBuffer);
-	pFibers->LoadFile("../Models/hcp-tractography.ply");
-	pSphere = new CModel("../Models/Sphere.obj");
 	pShaderSphere = new CShader();
 	pShaderSphere->CreateShaderProgram("../Shaders/VS_Sphere.glsl", nullptr, nullptr, nullptr, "../Shaders/FS_Sphere.glsl");
+	pShaderCube = new CShader();
+	pShaderCube->CreateShaderProgram("../Shaders/VS_Cube.glsl", nullptr, nullptr, "../Shaders/GS_ShowCube.glsl",  "../Shaders/FS_Cube.glsl");
+	pFibers = new CFibers(pWindow);
+	pFrameBuffer = new CFrameBuffer(pWindow->GetWindowSize().x, pWindow->GetWindowSize().y, pShaderFrameBuffer);
+
+	pSphere = new CModel("../Models/Sphere.obj");
 	{ //GUI
 		ImGui::CreateContext();
 		ImGuiIO& io = ImGui::GetIO(); (void)io;
@@ -199,19 +206,15 @@ void GameLoop()
 				nCountTubeEdgesOld = nCountTubeEdges;
 			}
 			
-			pFibers->DrawTubes(pCamera, pShaderTube, pFrameBuffer, fRadius, nRenderMode, nVisibleTubeMode);
+			pFibers->DrawTubes(pCamera, pShaderTube, pFrameBuffer, fRadius, nRenderMode, nVisibleTubeMode, bAndLinkage);
 			
 		}
-		if (bDrawPoints)
+		if (bDrawCube)
 		{
-			pShaderPoints->Bind();
-			GLint nUniformLocationViewProjectionMatrix = glGetUniformLocation(pShaderPoints->GetID(), "viewProjectionMatrix");
-			glm::mat4 mViewProjectionMatrix = pCamera->GetViewProjectionMatrix();
-			glUniformMatrix4fv(nUniformLocationViewProjectionMatrix, 1, GL_FALSE, &(mViewProjectionMatrix[0][0]));
-			pFibers->DrawPoints(pCamera, pShaderPoints);
-			pShaderPoints->UnBind();
+			glDisable(GL_BLEND);
+			pFibers->DrawCubes(pCamera, pShaderCube, pFrameBuffer, bDefineCubeAsVisible, bAndLinkage);
 		}
-		
+
 		if (bEnableSphereMarker)
 		{
 			glEnable(GL_BLEND);
@@ -239,25 +242,61 @@ void GameLoop()
 		pFrameBuffer->DrawToScreen();
 		pFrameBuffer->UnBind();
 
+		if (bExport)
+		{
+			pFibers->Export();
+			bExport = false;
+		}
+
 		{
 			ImGui::Begin("Settings");                          
 
-															  
+			if (ImGui::Button("Load hcp-tractography.ply"))
+			{
+				pFibers->LoadFile("../Models/hcp-tractography.ply");
+			}
+			if (ImGui::Button("Load complete_tractography.ply"))
+			{
+				pFibers->LoadFile("../Models/complete_tractography.ply");
+			}
+			if (ImGui::Button("Load test.ply"))
+			{
+				pFibers->LoadFile("../Models/test.ply");
+			}
+
 			ImGui::Text("(%.1f FPS)", ImGui::GetIO().Framerate);
 			ImGui::Checkbox("Enable WireFrames", &bEnableWireFrame);      
 			ImGui::Checkbox("Draw Lines", &bDrawLine);      
 			ImGui::Checkbox("Draw Tubes", &bDrawTube);      
+			ImGui::Checkbox("Draw Cubes", &bDrawCube);
 			ImGui::RadioButton("Show Normals", &nRenderMode, 0);
 			ImGui::RadioButton("Show Fiber numbers", &nRenderMode, 1);
 			ImGui::RadioButton("Show Fiber Direction", &nRenderMode, 2);
 			ImGui::RadioButton("Show Fiber Depth", &nRenderMode, 3);
+		
 			if (ImGui::Button("Detect Inner and Outer Tubes"))
 			{
-				pFibers->DisableHiddenFibers(pShaderTube, fRadius);
+				pFibers->DisableHiddenFibers(pShaderTube, fRadius, bAndLinkage);
 			}
-			
-			ImGui::SliderFloat("Radius", &fRadius, 0.001f, 10.0f);
-			ImGui::SliderFloat("Point Size", &fPointSize, 1.0f, 10.0f);
+			if (ImGui::Button("Fill Geometry with Cubes"))
+			{
+				pFibers->FillInsideWithCubes(fRadius, bAndLinkage, nCountTubeEdges);
+			}
+			bDefineCubeAsVisible = false;
+			if (ImGui::Button("Define Cubes as Visible"))
+			{
+				bDefineCubeAsVisible = true;
+			}
+			if (ImGui::Button("Deactivate inner Cubes"))
+			{
+				pFibers->DeactivateInnerCubes();
+			}
+			if (ImGui::Button("Store Tubes to CPU"))
+			{
+				pFibers->TubeBufferToCPU();
+			}
+
+			ImGui::SliderFloat("Radius", &fRadius, 0.001f, 3.0f);
 			ImGui::SliderInt("CountTubeEdges", &nCountTubeEdges, 3, 100);
 		
 			
@@ -268,8 +307,19 @@ void GameLoop()
 			pFibers->EnableTubePlanes(bEnablePlaneStart, bEnablePlaneEnd);
 			if (ImGui::Button("Export"))
 			{
-				pFibers->Export();
+				bExport = true;
+				pFibers->ActivateExport();
 			}
+			if (ImGui::Button("Export Cubes"))
+			{
+				pFibers->ExportCubes("FullBrain.cube");
+			}
+			
+			if (ImGui::Button("Import Cubes"))
+			{
+				pFibers->ImportCubes("FullBrain.cube");
+			}
+			
 			if (ImGui::Button("Close Fiber Endings"))
 			{
 				pFibers->BringEndingsTogether();
@@ -292,10 +342,12 @@ void GameLoop()
 			float aSpherePosition[3] = { vSpherePosition.x, vSpherePosition.y, vSpherePosition.z };
 			ImGui::InputFloat3("Sphere Position", aSpherePosition);
 			vSpherePosition = glm::vec3(aSpherePosition[0], aSpherePosition[1], aSpherePosition[2]);
-			if (ImGui::Button("Ignor Cutting Plane Sphere"))
+			if (ImGui::Button("Ignore Cutting Plane Sphere"))
 			{
 				pFibers->IgnoreCuttingPlaneForSphere(vSpherePosition, fSphereRadius);
 			}
+
+			ImGui::Checkbox("Cutting Plane And Linkage", &bAndLinkage);
 
 			for (unsigned int i = 0; i < nCountCuttingPlanes; ++i)
 			{
