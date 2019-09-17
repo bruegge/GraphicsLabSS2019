@@ -15,6 +15,7 @@ uniform int nVisibleTubeMode;
 uniform int nEnableCuttingPlane[10];
 uniform vec4 vCuttingPlane[10];
 uniform int nCountCuttingPlanes;
+uniform int bAndLinkage;
 
 struct STubeInfo
 {
@@ -111,6 +112,10 @@ bool CheckCuttingPlanes(vec3 midpointPosition)
 			{
 				result = true;
 			}
+			if(bAndLinkage == 1 && direction <0)
+			{
+				return false;
+			}
 		}
 	}
 	if(oneActive == true)
@@ -154,10 +159,6 @@ void main()
 	vs_out.vTubeDirection = normalize((fibers.fibers[instance].matModelMatrix * vec4(0,0,0,1) - fibers.fibers[instance].matModelMatrix * vec4(0,0,1,1)).xyz);
 	
 	int visible = fibers.fibers[instance].nVisibleTube & 0x00000001;
-	if(nEnableExport == 1)
-	{
-		ExportVertexToSSBO(pos.xyz);
-	}
 	if(nVisibleTubeMode == 0 && visible == 1)
 	{
 		gl_Position = vec4(0,0,0,0);
@@ -175,4 +176,17 @@ void main()
 	{
 		fibers.fibers[instance].nVisibleTube = fibers.fibers[instance].nVisibleTube | 0x00000002;
 	}
+	if(nEnableExport == 1)
+	{
+		if(gl_Position == vec4(0,0,0,0))
+		{
+			ExportVertexToSSBO(vec3(0,0,0));
+		}
+		else
+		{
+			ExportVertexToSSBO(pos.xyz);
+		}
+		
+	}
+	
 }

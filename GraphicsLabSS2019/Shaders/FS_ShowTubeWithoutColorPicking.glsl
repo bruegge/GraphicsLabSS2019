@@ -25,11 +25,7 @@ void main()
 	int nSquared = int(sqrt(nCountFibers));
 	vec3 color = vec3(1,0,1);
 	
-	uint nTubeNumber = fs_in.nInstanceID + 1;
-	color.x = ((nTubeNumber >> 16) & 0xff) / 255.0f;
-	color.y = ((nTubeNumber >> 8) & 0xff) / 255.0f;
-	color.z = (nTubeNumber & 0xff) / 255.0f;
-	Tube = color;
+	Tube = vec3(0,0,0);
 	
 	if(nRenderMode == 1)
 	{
